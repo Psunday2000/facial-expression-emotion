@@ -5,6 +5,9 @@ from kivy.uix.image import Image
 from kivy.uix.camera import Camera
 from kivy.uix.label import Label
 from kivy.lang import Builder
+from keras.models import load_model
+from keras.preprocessing.image import img_to_array, load_img, save_img
+import numpy as np
 
 # Set up Kivy's window size
 from kivy.config import Config
@@ -19,7 +22,7 @@ Builder.load_string('''
     Camera:
         id: camera
         index: 0  # Set the camera index explicitly
-        resolution: (640, 480)
+        resolution: (48, 48)
         play: True
     
     BoxLayout:
@@ -38,12 +41,16 @@ Builder.load_string('''
             source: ''
     
     Label:
-        id: emotion_label
+        id: label_result
         text: 'Emotion: '
 ''')
 
 
 class CameraApp(BoxLayout):
+    def __init__(self, **kwargs):
+        super(CameraApp, self).__init__(**kwargs)
+        self.model = load_model("facialmodel.h5")
+
     def capture(self):
         camera = self.ids.camera
         img_preview = self.ids.img_preview
@@ -56,9 +63,33 @@ class CameraApp(BoxLayout):
         print("Image captured successfully.")
 
     def analyze_emotion(self):
-        # Dummy function for emotion analysis
-        emotion_result = "Happy"  # Replace with your actual emotion analysis logic
-        self.ids.emotion_label.text = f'Emotion: {emotion_result}'
+        captured_image_path = "captured_image.jpg"
+
+        # Load the image and resize it to (48, 48)
+        img = load_img(captured_image_path,
+                       color_mode="grayscale", target_size=(48, 48))
+
+        # Convert the resized image to array
+        img_array = img_to_array(img)
+
+        # Add an extra channel to make it rank 4
+        img_array = np.expand_dims(img_array, axis=0)
+        img_array = np.expand_dims(img_array, axis=-1)
+
+        # Normalize the image data
+        preprocessed_image = img_array / 255.0
+
+        # Make predictions using the loaded model
+        predictions = self.model.predict(preprocessed_image)
+
+        # Process predictions and update UI (e.g., update label text)
+        emotion_labels = ['angry', 'disgust', 'fear',
+                          'happy', 'neutral', 'sad', 'surprise']
+        predicted_emotion_index = np.argmax(predictions)
+        predicted_emotion = emotion_labels[predicted_emotion_index]
+
+        # Update UI (e.g., set label text to the predicted emotion)
+        self.ids.label_result.text = f"Emotion: {predicted_emotion}"
 
 
 class EmotionDetectionApp(App):
